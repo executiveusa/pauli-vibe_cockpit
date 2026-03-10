@@ -6,10 +6,10 @@
 
 use crate::CollectError;
 use chrono::{DateTime, Utc};
+use asupersync::process::{Command, Stdio};
+use asupersync::time::wall_now;
 use serde::{Deserialize, Serialize};
-use std::process::Stdio;
 use std::time::Duration;
-use tokio::process::Command;
 use tracing::{debug, instrument, warn};
 
 /// Command executor for running shell commands
@@ -367,13 +367,13 @@ impl Executor {
         let child = Command::new("sh")
             .arg("-c")
             .arg(cmd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stdout(Stdio::Pipe)
+            .stderr(Stdio::Pipe)
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| CollectError::ExecutionError(e.to_string()))?;
 
-        let result = tokio::time::timeout(timeout, child.wait_with_output()).await;
+        let result = asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
 
         match result {
             Ok(Ok(output)) => Ok(CommandOutput {
@@ -419,15 +419,15 @@ impl Executor {
         ssh_cmd
             .arg(format!("{}@{}", ssh.user, ssh.host))
             .arg(cmd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stdout(Stdio::Pipe)
+            .stderr(Stdio::Pipe)
             .kill_on_drop(true);
 
         let child = ssh_cmd
             .spawn()
             .map_err(|e| CollectError::ExecutionError(e.to_string()))?;
 
-        let result = tokio::time::timeout(timeout, child.wait_with_output()).await;
+        let result = asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
 
         match result {
             Ok(Ok(output)) => Ok(CommandOutput {

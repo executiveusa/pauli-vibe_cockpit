@@ -9,6 +9,7 @@ use dashmap::DashMap;
 use russh::client;
 use std::path::Path;
 use std::sync::Arc;
+use asupersync::time::wall_now;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -170,7 +171,7 @@ impl SshRunner {
         cmd: &str,
         timeout: Duration,
     ) -> Result<CommandOutput, SshError> {
-        match tokio::time::timeout(timeout, self.exec(machine, cmd)).await {
+        match asupersync::time::timeout(wall_now(), timeout, self.exec(machine, cmd)).await {
             Ok(result) => result,
             Err(_) => Err(SshError::Timeout(timeout)),
         }
@@ -200,7 +201,7 @@ impl SshRunner {
             });
         }
 
-        tokio::fs::write(local_path, output.stdout.as_bytes()).await?;
+        asupersync::fs::write(local_path, output.stdout.as_bytes()).await?;
         Ok(())
     }
 
@@ -329,7 +330,8 @@ impl SshRunner {
         let addr = format!("{}:{}", ssh_config.host, ssh_config.port);
 
         // Connect with timeout
-        let handle = match tokio::time::timeout(
+        let handle = match asupersync::time::timeout(
+            wall_now(),
             self.config.connect_timeout,
             client::connect(Arc::new(config), &addr, SshHandler),
         )
@@ -437,7 +439,7 @@ impl SshRunner {
         let mut exit_code = None;
 
         loop {
-            match tokio::time::timeout(self.config.command_timeout, channel.wait()).await {
+            match asupersync::time::timeout(wall_now(), self.config.command_timeout, channel.wait()).await {
                 Ok(Some(msg)) => match msg {
                     russh::ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
                     russh::ChannelMsg::ExtendedData { data, ext } => {
