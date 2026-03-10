@@ -160,7 +160,7 @@ impl WebServer {
 }
 
 async fn shutdown_signal() {
-    if tokio::signal::ctrl_c().await.is_ok() {
+    if asupersync::signal::ctrl_c().await.is_ok() {
         tracing::info!("Shutdown signal received");
     }
 }
