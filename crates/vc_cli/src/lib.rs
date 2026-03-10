@@ -3363,6 +3363,11 @@ fn print_output<T: Serialize>(value: &T, format: OutputFormat) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::future::Future;
+
+    fn run_async<F: Future<Output = ()>>(future: F) {
+        futures::executor::block_on(future);
+    }
 
     // =============================================================================
     // CliError Tests
@@ -4843,67 +4848,85 @@ mod tests {
     // Cli::run Tests
     // =============================================================================
 
-    #[tokio::test]
-    async fn test_cli_run_status() {
-        let cli = Cli::parse_from(["vc", "status"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_status() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "status"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_tui() {
-        let cli = Cli::parse_from(["vc", "tui"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_tui() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "tui"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_health() {
-        let cli = Cli::parse_from(["vc", "robot", "health"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_health() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "health"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_triage() {
-        let cli = Cli::parse_from(["vc", "robot", "triage"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_triage() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "triage"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_accounts() {
-        let cli = Cli::parse_from(["vc", "robot", "accounts"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_accounts() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "accounts"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_oracle() {
-        let cli = Cli::parse_from(["vc", "robot", "oracle"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_oracle() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "oracle"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_machines() {
-        let cli = Cli::parse_from(["vc", "robot", "machines"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_machines() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "machines"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_repos() {
-        let cli = Cli::parse_from(["vc", "robot", "repos"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_repos() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "repos"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
-    #[tokio::test]
-    async fn test_cli_run_robot_status() {
-        let cli = Cli::parse_from(["vc", "robot", "status"]);
-        let result = cli.run().await;
-        assert!(result.is_ok());
+    #[test]
+    fn test_cli_run_robot_status() {
+        run_async(async {
+            let cli = Cli::parse_from(["vc", "robot", "status"]);
+            let result = cli.run().await;
+            assert!(result.is_ok());
+        });
     }
 
     // =============================================================================

@@ -40,6 +40,31 @@ pub use remote::{
 };
 pub use ssh::{CommandOutput as SshCommandOutput, PoolStats, SshError, SshRunner, SshRunnerConfig};
 
+#[cfg(test)]
+pub(crate) fn run_async_test<F, T>(future: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    let asupersync_rt = asupersync::runtime::RuntimeBuilder::new()
+        .build()
+        .expect("build asupersync test runtime");
+    let tokio_rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build tokio compat runtime");
+    let _tokio_guard = tokio_rt.enter();
+    let root_cx = asupersync::Cx::for_testing();
+
+    asupersync_rt
+        .block_on(async {
+            asupersync_tokio_compat::runtime::with_tokio_context(&root_cx, || async move {
+                future.await
+            })
+            .await
+        })
+        .expect("test future should complete")
+}
+
 /// Collection errors
 #[derive(Error, Debug)]
 pub enum CollectError {
@@ -776,18 +801,20 @@ mod tests {
         assert_eq!(error.level, WarningLevel::Error);
     }
 
-    #[tokio::test]
-    async fn test_dummy_collector() {
-        let collector = collectors::DummyCollector;
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_dummy_collector() {
+        crate::run_async_test(async {
+            let collector = collectors::DummyCollector;
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        assert_eq!(collector.name(), "dummy");
-        assert_eq!(collector.schema_version(), 1);
-        assert!(!collector.supports_incremental());
-        assert!(collector.required_tool().is_none());
+            assert_eq!(collector.name(), "dummy");
+            assert_eq!(collector.schema_version(), 1);
+            assert!(!collector.supports_incremental());
+            assert!(collector.required_tool().is_none());
 
-        let result = collector.collect(&ctx).await.unwrap();
-        assert!(result.success);
-        assert_eq!(result.total_rows(), 1);
+            let result = collector.collect(&ctx).await.unwrap();
+            assert!(result.success);
+            assert_eq!(result.total_rows(), 1);
+        });
     }
 }

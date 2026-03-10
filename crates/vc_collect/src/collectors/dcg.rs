@@ -242,18 +242,20 @@ mod tests {
     }
 
     // Integration tests require actual database - mark as ignored
-    #[tokio::test]
+    #[test]
     #[ignore = "requires actual dcg database"]
-    async fn test_collect_missing_database() {
-        use std::time::Duration;
+    fn test_collect_missing_database() {
+        crate::run_async_test(async {
+            use std::time::Duration;
 
-        let collector = DcgCollector::with_path("/nonexistent/path/events.db");
-        let ctx = CollectContext::local("test-machine", Duration::from_secs(10));
+            let collector = DcgCollector::with_path("/nonexistent/path/events.db");
+            let ctx = CollectContext::local("test-machine", Duration::from_secs(10));
 
-        let result = collector.collect(&ctx).await;
-        // Should succeed with empty result and warning
-        assert!(result.is_ok());
-        let result = result.unwrap();
-        assert!(result.has_warnings());
+            let result = collector.collect(&ctx).await;
+            // Should succeed with empty result and warning
+            assert!(result.is_ok());
+            let result = result.unwrap();
+            assert!(result.has_warnings());
+        });
     }
 }

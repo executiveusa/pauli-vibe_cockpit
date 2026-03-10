@@ -953,78 +953,92 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    #[tokio::test]
-    async fn test_dummy_collector() {
-        let collector = DummyCollector;
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_dummy_collector() {
+        crate::run_async_test(async {
+            let collector = DummyCollector;
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        let result = collector.collect(&ctx).await.unwrap();
-        assert!(result.success);
-        assert_eq!(result.total_rows(), 1);
-        assert!(result.new_cursor.is_some());
+            let result = collector.collect(&ctx).await.unwrap();
+            assert!(result.success);
+            assert_eq!(result.total_rows(), 1);
+            assert!(result.new_cursor.is_some());
+        });
     }
 
-    #[tokio::test]
-    async fn test_incremental_dummy_collector() {
-        let collector = IncrementalDummyCollector;
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_incremental_dummy_collector() {
+        crate::run_async_test(async {
+            let collector = IncrementalDummyCollector;
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        // First collection
-        let result1 = collector.collect(&ctx).await.unwrap();
-        assert_eq!(result1.new_cursor, Some(Cursor::primary_key(1)));
+            // First collection
+            let result1 = collector.collect(&ctx).await.unwrap();
+            assert_eq!(result1.new_cursor, Some(Cursor::primary_key(1)));
 
-        // Second collection with cursor
-        let ctx2 = ctx.clone().with_cursor(Cursor::primary_key(1));
-        let result2 = collector.collect(&ctx2).await.unwrap();
-        assert_eq!(result2.new_cursor, Some(Cursor::primary_key(2)));
+            // Second collection with cursor
+            let ctx2 = ctx.clone().with_cursor(Cursor::primary_key(1));
+            let result2 = collector.collect(&ctx2).await.unwrap();
+            assert_eq!(result2.new_cursor, Some(Cursor::primary_key(2)));
+        });
     }
 
-    #[tokio::test]
-    async fn test_failing_dummy_collector() {
-        let collector = FailingDummyCollector::always_fails("test error");
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_failing_dummy_collector() {
+        crate::run_async_test(async {
+            let collector = FailingDummyCollector::always_fails("test error");
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        let result = collector.collect(&ctx).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(CollectError::Other(_))));
+            let result = collector.collect(&ctx).await;
+            assert!(result.is_err());
+            assert!(matches!(result, Err(CollectError::Other(_))));
+        });
     }
 
-    #[tokio::test]
-    async fn test_batch_dummy_collector() {
-        let collector = BatchDummyCollector::new(100);
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_batch_dummy_collector() {
+        crate::run_async_test(async {
+            let collector = BatchDummyCollector::new(100);
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        let result = collector.collect(&ctx).await.unwrap();
-        assert_eq!(result.total_rows(), 100);
+            let result = collector.collect(&ctx).await.unwrap();
+            assert_eq!(result.total_rows(), 100);
+        });
     }
 
-    #[tokio::test]
-    async fn test_batch_dummy_respects_max_rows() {
-        let collector = BatchDummyCollector::new(1000);
-        let ctx = CollectContext::local("test", Duration::from_secs(30)).with_max_rows(50);
+    #[test]
+    fn test_batch_dummy_respects_max_rows() {
+        crate::run_async_test(async {
+            let collector = BatchDummyCollector::new(1000);
+            let ctx = CollectContext::local("test", Duration::from_secs(30)).with_max_rows(50);
 
-        let result = collector.collect(&ctx).await.unwrap();
-        assert_eq!(result.total_rows(), 50);
+            let result = collector.collect(&ctx).await.unwrap();
+            assert_eq!(result.total_rows(), 50);
+        });
     }
 
-    #[tokio::test]
-    async fn test_tool_requiring_collector_with_available_tool() {
-        let collector = ToolRequiringDummyCollector::new("sh");
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_tool_requiring_collector_with_available_tool() {
+        crate::run_async_test(async {
+            let collector = ToolRequiringDummyCollector::new("sh");
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        // sh should be available on all Unix systems
-        let result = collector.collect(&ctx).await.unwrap();
-        assert!(result.success);
+            // sh should be available on all Unix systems
+            let result = collector.collect(&ctx).await.unwrap();
+            assert!(result.success);
+        });
     }
 
-    #[tokio::test]
-    async fn test_tool_requiring_collector_with_missing_tool() {
-        let collector = ToolRequiringDummyCollector::new("nonexistent_tool_xyz_12345");
-        let ctx = CollectContext::local("test", Duration::from_secs(30));
+    #[test]
+    fn test_tool_requiring_collector_with_missing_tool() {
+        crate::run_async_test(async {
+            let collector = ToolRequiringDummyCollector::new("nonexistent_tool_xyz_12345");
+            let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-        let result = collector.collect(&ctx).await;
-        assert!(result.is_err());
-        assert!(matches!(result, Err(CollectError::ToolNotFound(_))));
+            let result = collector.collect(&ctx).await;
+            assert!(result.is_err());
+            assert!(matches!(result, Err(CollectError::ToolNotFound(_))));
+        });
     }
 
     // =============================================================================
@@ -1133,18 +1147,20 @@ mod tests {
         assert!(repo.untracked_files.is_empty());
     }
 
-    #[tokio::test]
-    async fn test_ru_collector_without_tool() {
-        // Test that collector gracefully handles missing ru tool
-        let collector = RuCollector;
-        let ctx = CollectContext::local("test", Duration::from_secs(5));
+    #[test]
+    fn test_ru_collector_without_tool() {
+        crate::run_async_test(async {
+            // Test that collector gracefully handles missing ru tool
+            let collector = RuCollector;
+            let ctx = CollectContext::local("test", Duration::from_secs(5));
 
-        // This should not panic, but will likely fail due to missing tool
-        let result = collector.collect(&ctx).await.unwrap();
+            // This should not panic, but will likely fail due to missing tool
+            let result = collector.collect(&ctx).await.unwrap();
 
-        // Without ru installed, we expect warnings but no crash
-        // The result may have empty rows and warnings
-        assert!(!result.warnings.is_empty() || result.rows.is_empty());
+            // Without ru installed, we expect warnings but no crash
+            // The result may have empty rows and warnings
+            assert!(!result.warnings.is_empty() || result.rows.is_empty());
+        });
     }
 
     // =============================================================================
@@ -1159,25 +1175,27 @@ mod tests {
         assert!(!collector.supports_incremental());
     }
 
-    #[tokio::test]
-    async fn test_fallback_probe_collector_local() {
-        let collector = FallbackProbeCollector;
-        let ctx = CollectContext::local("test-machine", Duration::from_secs(30));
+    #[test]
+    fn test_fallback_probe_collector_local() {
+        crate::run_async_test(async {
+            let collector = FallbackProbeCollector;
+            let ctx = CollectContext::local("test-machine", Duration::from_secs(30));
 
-        // This should always succeed - that's the whole point of the fallback collector
-        let result = collector.collect(&ctx).await.unwrap();
-        assert!(result.success);
-        assert_eq!(result.total_rows(), 1);
-        assert!(result.new_cursor.is_some());
+            // This should always succeed - that's the whole point of the fallback collector
+            let result = collector.collect(&ctx).await.unwrap();
+            assert!(result.success);
+            assert_eq!(result.total_rows(), 1);
+            assert!(result.new_cursor.is_some());
 
-        // Verify the row has expected fields
-        let row = &result.rows[0].rows[0];
-        assert_eq!(row["machine_id"], "test-machine");
-        assert!(row["collected_at"].is_string());
-        // On Linux, we should have load averages
-        if cfg!(target_os = "linux") {
-            assert!(row["load1"].is_number() || row["load1"].is_null());
-        }
+            // Verify the row has expected fields
+            let row = &result.rows[0].rows[0];
+            assert_eq!(row["machine_id"], "test-machine");
+            assert!(row["collected_at"].is_string());
+            // On Linux, we should have load averages
+            if cfg!(target_os = "linux") {
+                assert!(row["load1"].is_number() || row["load1"].is_null());
+            }
+        });
     }
 
     #[test]

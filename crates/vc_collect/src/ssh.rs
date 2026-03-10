@@ -4,12 +4,12 @@
 
 use crate::executor::SshConfig;
 use crate::machine::Machine;
+use asupersync::time::wall_now;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use russh::client;
 use std::path::Path;
 use std::sync::Arc;
-use asupersync::time::wall_now;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::Mutex;
@@ -439,7 +439,9 @@ impl SshRunner {
         let mut exit_code = None;
 
         loop {
-            match asupersync::time::timeout(wall_now(), self.config.command_timeout, channel.wait()).await {
+            match asupersync::time::timeout(wall_now(), self.config.command_timeout, channel.wait())
+                .await
+            {
                 Ok(Some(msg)) => match msg {
                     russh::ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
                     russh::ChannelMsg::ExtendedData { data, ext } => {
@@ -653,14 +655,14 @@ mod tests {
         assert_eq!(base64_encode(b"abc"), "YWJj");
     }
 
-    #[tokio::test]
-    async fn test_ssh_runner_creation() {
+    #[test]
+    fn test_ssh_runner_creation() {
         let runner = SshRunner::new();
         assert_eq!(runner.pool_stats().active_connections, 0);
     }
 
-    #[tokio::test]
-    async fn test_ssh_runner_with_config() {
+    #[test]
+    fn test_ssh_runner_with_config() {
         let config = SshRunnerConfig {
             connect_timeout: Duration::from_secs(10),
             command_timeout: Duration::from_secs(30),
@@ -672,8 +674,8 @@ mod tests {
         assert_eq!(runner.config.max_connections, 20);
     }
 
-    #[tokio::test]
-    async fn test_close_all() {
+    #[test]
+    fn test_close_all() {
         let runner = SshRunner::new();
         runner.close_all();
         assert_eq!(runner.pool_stats().active_connections, 0);

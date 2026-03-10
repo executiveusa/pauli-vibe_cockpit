@@ -867,8 +867,8 @@ mod tests {
         assert!(err.to_string().contains("error output"));
     }
 
-    #[tokio::test]
-    async fn test_multi_machine_collector_creation() {
+    #[test]
+    fn test_multi_machine_collector_creation() {
         let store = Arc::new(VcStore::open_memory().unwrap());
         let registry = Arc::new(MachineRegistry::new(store));
         let ssh = Arc::new(SshRunner::new());

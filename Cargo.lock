@@ -342,6 +342,7 @@ dependencies = [
  "franken-kernel",
  "futures-lite",
  "getrandom 0.4.1",
+ "hashbrown 0.15.5",
  "hmac",
  "js-sys",
  "libc",
@@ -2696,6 +2697,8 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
+ "allocator-api2",
+ "equivalent",
  "foldhash 0.1.5",
 ]
 
@@ -6210,15 +6213,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "asupersync",
- "asupersync-tokio-compat",
  "chrono",
  "clap",
+ "futures",
  "mockall",
  "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
  "uuid",
  "vc_alert",
@@ -6333,15 +6335,14 @@ name = "vc_oracle"
 version = "0.1.0"
 dependencies = [
  "asupersync",
- "asupersync-tokio-compat",
  "chrono",
+ "futures",
  "mockall",
  "proptest",
  "rand 0.10.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
  "vc_config",
  "vc_query",

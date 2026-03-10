@@ -330,43 +330,47 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_probe_local_tools() {
-        let prober = ToolProber::new();
-        let executor = Executor::local();
+    #[test]
+    fn test_probe_local_tools() {
+        crate::run_async_test(async {
+            let prober = ToolProber::new();
+            let executor = Executor::local();
 
-        // Probe for sh (should exist on any Unix system)
-        let spec = ToolSpec {
-            name: "sh",
-            detect_commands: &["command -v sh"],
-            version_flag: "--version",
-            version_regex: r"(\d+\.\d+(?:\.\d+)?)",
-        };
+            // Probe for sh (should exist on any Unix system)
+            let spec = ToolSpec {
+                name: "sh",
+                detect_commands: &["command -v sh"],
+                version_flag: "--version",
+                version_regex: r"(\d+\.\d+(?:\.\d+)?)",
+            };
 
-        let result = prober.probe_tool(&executor, &spec).await;
-        assert!(result.is_ok());
-        let tool = result.unwrap();
-        assert!(tool.is_some());
-        let info = tool.unwrap();
-        assert_eq!(info.tool_name, "sh");
-        assert!(info.is_available);
-        assert!(info.tool_path.is_some());
+            let result = prober.probe_tool(&executor, &spec).await;
+            assert!(result.is_ok());
+            let tool = result.unwrap();
+            assert!(tool.is_some());
+            let info = tool.unwrap();
+            assert_eq!(info.tool_name, "sh");
+            assert!(info.is_available);
+            assert!(info.tool_path.is_some());
+        });
     }
 
-    #[tokio::test]
-    async fn test_probe_nonexistent_tool() {
-        let prober = ToolProber::new();
-        let executor = Executor::local();
+    #[test]
+    fn test_probe_nonexistent_tool() {
+        crate::run_async_test(async {
+            let prober = ToolProber::new();
+            let executor = Executor::local();
 
-        let spec = ToolSpec {
-            name: "nonexistent_tool_xyz",
-            detect_commands: &["command -v nonexistent_tool_xyz"],
-            version_flag: "--version",
-            version_regex: r"(\d+\.\d+(?:\.\d+)?)",
-        };
+            let spec = ToolSpec {
+                name: "nonexistent_tool_xyz",
+                detect_commands: &["command -v nonexistent_tool_xyz"],
+                version_flag: "--version",
+                version_regex: r"(\d+\.\d+(?:\.\d+)?)",
+            };
 
-        let result = prober.probe_tool(&executor, &spec).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+            let result = prober.probe_tool(&executor, &spec).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        });
     }
 }

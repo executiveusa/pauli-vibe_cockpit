@@ -340,27 +340,29 @@ mod tests {
         assert_eq!(collector.name(), "cass");
     }
 
-    #[tokio::test]
-    async fn test_cass_collector_behavior() {
-        let collector = CassCollector::new();
-        let ctx = CollectContext::local("test", Duration::from_secs(5));
+    #[test]
+    fn test_cass_collector_behavior() {
+        crate::run_async_test(async {
+            let collector = CassCollector::new();
+            let ctx = CollectContext::local("test", Duration::from_secs(5));
 
-        let result = collector.collect(&ctx).await;
+            let result = collector.collect(&ctx).await;
 
-        // Test handles both cases: cass installed or not
-        match result {
-            Err(CollectError::ToolNotFound(tool)) => {
-                // Expected when cass is not installed
-                assert_eq!(tool, "cass");
+            // Test handles both cases: cass installed or not
+            match result {
+                Err(CollectError::ToolNotFound(tool)) => {
+                    // Expected when cass is not installed
+                    assert_eq!(tool, "cass");
+                }
+                Err(_) => {
+                    // Other errors are acceptable (e.g., command not found, parse error)
+                }
+                Ok(collect_result) => {
+                    // If cass is installed, verify the result structure
+                    assert!(collect_result.success);
+                }
             }
-            Err(_) => {
-                // Other errors are acceptable (e.g., command not found, parse error)
-            }
-            Ok(collect_result) => {
-                // If cass is installed, verify the result structure
-                assert!(collect_result.success);
-            }
-        }
+        });
     }
 
     #[test]

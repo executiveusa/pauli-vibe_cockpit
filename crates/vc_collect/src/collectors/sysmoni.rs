@@ -425,28 +425,30 @@ mod tests {
         assert_eq!(output.memory.used_bytes, 0); // Default
     }
 
-    #[tokio::test]
-    async fn test_sysmoni_collector_behavior() {
-        let collector = SysmoniCollector;
-        let ctx = CollectContext::local("test", Duration::from_secs(5));
+    #[test]
+    fn test_sysmoni_collector_behavior() {
+        crate::run_async_test(async {
+            let collector = SysmoniCollector;
+            let ctx = CollectContext::local("test", Duration::from_secs(5));
 
-        let result = collector.collect(&ctx).await;
+            let result = collector.collect(&ctx).await;
 
-        // Test handles both cases: sysmoni installed or not
-        match result {
-            Err(CollectError::ToolNotFound(tool)) => {
-                // Expected when sysmoni is not installed
-                assert_eq!(tool, "sysmoni");
+            // Test handles both cases: sysmoni installed or not
+            match result {
+                Err(CollectError::ToolNotFound(tool)) => {
+                    // Expected when sysmoni is not installed
+                    assert_eq!(tool, "sysmoni");
+                }
+                Err(_) => {
+                    // Other errors are acceptable (e.g., command not found, parse error)
+                }
+                Ok(collect_result) => {
+                    // If sysmoni is installed, verify the result structure
+                    assert!(collect_result.success);
+                    assert!(collect_result.total_rows() >= 1); // At least sys_samples row
+                }
             }
-            Err(_) => {
-                // Other errors are acceptable (e.g., command not found, parse error)
-            }
-            Ok(collect_result) => {
-                // If sysmoni is installed, verify the result structure
-                assert!(collect_result.success);
-                assert!(collect_result.total_rows() >= 1); // At least sys_samples row
-            }
-        }
+        });
     }
 
     #[test]

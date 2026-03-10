@@ -160,6 +160,11 @@ impl Default for Oracle {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+    use std::future::Future;
+
+    fn run_async<F: Future<Output = ()>>(future: F) {
+        futures::executor::block_on(future);
+    }
 
     // =============================================================================
     // OracleError Tests
@@ -388,11 +393,13 @@ mod tests {
         std::mem::drop(oracle);
     }
 
-    #[tokio::test]
-    async fn oracle_forecast_rate_limits_returns_empty() {
-        let oracle = Oracle::new();
-        let forecasts = oracle.forecast_rate_limits().await.unwrap();
-        assert!(forecasts.is_empty());
+    #[test]
+    fn oracle_forecast_rate_limits_returns_empty() {
+        run_async(async {
+            let oracle = Oracle::new();
+            let forecasts = oracle.forecast_rate_limits().await.unwrap();
+            assert!(forecasts.is_empty());
+        });
     }
 
     #[test]

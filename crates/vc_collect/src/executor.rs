@@ -5,9 +5,9 @@
 //! and `SQLite` query support.
 
 use crate::CollectError;
-use chrono::{DateTime, Utc};
 use asupersync::process::{Command, Stdio};
 use asupersync::time::wall_now;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tracing::{debug, instrument, warn};
@@ -373,7 +373,8 @@ impl Executor {
             .spawn()
             .map_err(|e| CollectError::ExecutionError(e.to_string()))?;
 
-        let result = asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
+        let result =
+            asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
 
         match result {
             Ok(Ok(output)) => Ok(CommandOutput {
@@ -427,7 +428,8 @@ impl Executor {
             .spawn()
             .map_err(|e| CollectError::ExecutionError(e.to_string()))?;
 
-        let result = asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
+        let result =
+            asupersync::time::timeout(wall_now(), timeout, child.wait_with_output_async()).await;
 
         match result {
             Ok(Ok(output)) => Ok(CommandOutput {
@@ -453,143 +455,165 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    #[tokio::test]
-    async fn test_local_executor() {
-        let executor = Executor::local();
-        assert!(executor.is_local());
+    #[test]
+    fn test_local_executor() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            assert!(executor.is_local());
 
-        let output = executor
-            .run("echo hello", Duration::from_secs(5))
-            .await
-            .unwrap();
-        assert_eq!(output.exit_code, 0);
-        assert!(output.success());
-        assert_eq!(output.stdout.trim(), "hello");
+            let output = executor
+                .run("echo hello", Duration::from_secs(5))
+                .await
+                .unwrap();
+            assert_eq!(output.exit_code, 0);
+            assert!(output.success());
+            assert_eq!(output.stdout.trim(), "hello");
+        });
     }
 
-    #[tokio::test]
-    async fn test_check_tool() {
-        let executor = Executor::local();
-        let has_sh = executor.check_tool("sh").await.unwrap();
-        assert!(has_sh);
+    #[test]
+    fn test_check_tool() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            let has_sh = executor.check_tool("sh").await.unwrap();
+            assert!(has_sh);
 
-        let has_nonexistent = executor.check_tool("nonexistent_tool_xyz").await.unwrap();
-        assert!(!has_nonexistent);
+            let has_nonexistent = executor.check_tool("nonexistent_tool_xyz").await.unwrap();
+            assert!(!has_nonexistent);
+        });
     }
 
-    #[tokio::test]
-    async fn test_run_timeout_success() {
-        let executor = Executor::local();
-        let stdout = executor
-            .run_timeout("echo success", Duration::from_secs(5))
-            .await
-            .unwrap();
-        assert_eq!(stdout.trim(), "success");
+    #[test]
+    fn test_run_timeout_success() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            let stdout = executor
+                .run_timeout("echo success", Duration::from_secs(5))
+                .await
+                .unwrap();
+            assert_eq!(stdout.trim(), "success");
+        });
     }
 
-    #[tokio::test]
-    async fn test_run_timeout_failure() {
-        let executor = Executor::local();
-        let result = executor.run_timeout("exit 1", Duration::from_secs(5)).await;
-        assert!(result.is_err());
+    #[test]
+    fn test_run_timeout_failure() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            let result = executor.run_timeout("exit 1", Duration::from_secs(5)).await;
+            assert!(result.is_err());
+        });
     }
 
-    #[tokio::test]
-    async fn test_read_file() {
-        let mut temp = NamedTempFile::new().unwrap();
-        writeln!(temp, "test content").unwrap();
+    #[test]
+    fn test_read_file() {
+        crate::run_async_test(async {
+            let mut temp = NamedTempFile::new().unwrap();
+            writeln!(temp, "test content").unwrap();
 
-        let executor = Executor::local();
-        let content = executor
-            .read_file(temp.path().to_str().unwrap(), Duration::from_secs(5))
-            .await
-            .unwrap();
+            let executor = Executor::local();
+            let content = executor
+                .read_file(temp.path().to_str().unwrap(), Duration::from_secs(5))
+                .await
+                .unwrap();
 
-        assert_eq!(String::from_utf8_lossy(&content).trim(), "test content");
+            assert_eq!(String::from_utf8_lossy(&content).trim(), "test content");
+        });
     }
 
-    #[tokio::test]
-    async fn test_read_file_not_found() {
-        let executor = Executor::local();
-        let result = executor
-            .read_file("/nonexistent/path/to/file", Duration::from_secs(5))
-            .await;
-        assert!(matches!(result, Err(CollectError::FileNotFound(_))));
+    #[test]
+    fn test_read_file_not_found() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            let result = executor
+                .read_file("/nonexistent/path/to/file", Duration::from_secs(5))
+                .await;
+            assert!(matches!(result, Err(CollectError::FileNotFound(_))));
+        });
     }
 
-    #[tokio::test]
-    async fn test_read_file_range() {
-        let mut temp = NamedTempFile::new().unwrap();
-        write!(temp, "0123456789").unwrap();
+    #[test]
+    fn test_read_file_range() {
+        crate::run_async_test(async {
+            let mut temp = NamedTempFile::new().unwrap();
+            write!(temp, "0123456789").unwrap();
 
-        let executor = Executor::local();
-        let content = executor
-            .read_file_range(temp.path().to_str().unwrap(), 5, Duration::from_secs(5))
-            .await
-            .unwrap();
+            let executor = Executor::local();
+            let content = executor
+                .read_file_range(temp.path().to_str().unwrap(), 5, Duration::from_secs(5))
+                .await
+                .unwrap();
 
-        assert_eq!(String::from_utf8_lossy(&content), "56789");
+            assert_eq!(String::from_utf8_lossy(&content), "56789");
+        });
     }
 
-    #[tokio::test]
-    async fn test_stat_existing_file() {
-        let temp = NamedTempFile::new().unwrap();
+    #[test]
+    fn test_stat_existing_file() {
+        crate::run_async_test(async {
+            let temp = NamedTempFile::new().unwrap();
 
-        let executor = Executor::local();
-        let stat = executor
-            .stat(temp.path().to_str().unwrap(), Duration::from_secs(5))
-            .await
-            .unwrap();
+            let executor = Executor::local();
+            let stat = executor
+                .stat(temp.path().to_str().unwrap(), Duration::from_secs(5))
+                .await
+                .unwrap();
 
-        assert!(stat.exists);
-        assert!(stat.inode > 0);
+            assert!(stat.exists);
+            assert!(stat.inode > 0);
+        });
     }
 
-    #[tokio::test]
-    async fn test_stat_nonexistent_file() {
-        let executor = Executor::local();
-        let stat = executor
-            .stat("/nonexistent/path/to/file", Duration::from_secs(5))
-            .await
-            .unwrap();
+    #[test]
+    fn test_stat_nonexistent_file() {
+        crate::run_async_test(async {
+            let executor = Executor::local();
+            let stat = executor
+                .stat("/nonexistent/path/to/file", Duration::from_secs(5))
+                .await
+                .unwrap();
 
-        assert!(!stat.exists);
+            assert!(!stat.exists);
+        });
     }
 
-    #[tokio::test]
-    async fn test_file_exists() {
-        let temp = NamedTempFile::new().unwrap();
-        let executor = Executor::local();
+    #[test]
+    fn test_file_exists() {
+        crate::run_async_test(async {
+            let temp = NamedTempFile::new().unwrap();
+            let executor = Executor::local();
 
-        let exists = executor
-            .file_exists(temp.path().to_str().unwrap(), Duration::from_secs(5))
-            .await
-            .unwrap();
-        assert!(exists);
+            let exists = executor
+                .file_exists(temp.path().to_str().unwrap(), Duration::from_secs(5))
+                .await
+                .unwrap();
+            assert!(exists);
 
-        let not_exists = executor
-            .file_exists("/nonexistent/path", Duration::from_secs(5))
-            .await
-            .unwrap();
-        assert!(!not_exists);
+            let not_exists = executor
+                .file_exists("/nonexistent/path", Duration::from_secs(5))
+                .await
+                .unwrap();
+            assert!(!not_exists);
+        });
     }
 
-    #[tokio::test]
-    async fn test_file_size() {
-        let mut temp = NamedTempFile::new().unwrap();
-        write!(temp, "hello").unwrap();
+    #[test]
+    fn test_file_size() {
+        crate::run_async_test(async {
+            let mut temp = NamedTempFile::new().unwrap();
+            write!(temp, "hello").unwrap();
 
-        let executor = Executor::local();
-        let size = executor
-            .file_size(temp.path().to_str().unwrap(), Duration::from_secs(5))
-            .await
-            .unwrap();
+            let executor = Executor::local();
+            let size = executor
+                .file_size(temp.path().to_str().unwrap(), Duration::from_secs(5))
+                .await
+                .unwrap();
 
-        assert_eq!(size, 5);
+            assert_eq!(size, 5);
+        });
     }
 
-    #[tokio::test]
-    async fn test_shell_escape() {
+    #[test]
+    fn test_shell_escape() {
         // Test basic escaping
         assert_eq!(shell_escape("simple"), "'simple'");
         assert_eq!(shell_escape("with spaces"), "'with spaces'");

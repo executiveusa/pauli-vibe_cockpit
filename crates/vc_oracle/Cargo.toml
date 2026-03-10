@@ -17,8 +17,6 @@ vc_query.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 asupersync.workspace = true
-asupersync-tokio-compat.workspace = true
-tokio.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 chrono.workspace = true
@@ -27,3 +25,4 @@ rand.workspace = true
 [dev-dependencies]
 proptest.workspace = true
 mockall.workspace = true
+futures.workspace = true
