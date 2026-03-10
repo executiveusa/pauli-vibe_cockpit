@@ -2559,7 +2559,7 @@ impl Cli {
                 let tick = Duration::from_secs(interval_secs);
 
                 loop {
-                    tokio::time::sleep(tick).await;
+                    asupersync::time::sleep(asupersync::time::wall_now(), tick).await;
                     let now = Utc::now();
 
                     // Check for new alerts since last_check
