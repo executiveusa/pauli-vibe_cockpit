@@ -1,11 +1,12 @@
 -- Migration 009: cloud_benchmarker collector tables
 -- Created: 2026-01-29
 -- Collector pattern: HTTP Scrape or SQLite direct read
+-- Translated from DuckDB to SQLite-compatible SQL (bd-dfl)
 
 -- Raw benchmark results from /data/raw/
 CREATE TABLE IF NOT EXISTS cloud_bench_raw (
     machine_id TEXT NOT NULL,
-    collected_at TIMESTAMP NOT NULL,
+    collected_at TEXT NOT NULL,
     benchmark_type TEXT NOT NULL,    -- cpu, memory, disk, network
     benchmark_name TEXT NOT NULL,    -- specific test name
     value REAL NOT NULL,
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS cloud_bench_raw (
 -- Overall scores from /data/overall/
 CREATE TABLE IF NOT EXISTS cloud_bench_overall (
     machine_id TEXT NOT NULL,
-    collected_at TIMESTAMP NOT NULL,
+    collected_at TEXT NOT NULL,
     overall_score REAL,
     cpu_score REAL,
     memory_score REAL,
@@ -31,11 +32,11 @@ CREATE TABLE IF NOT EXISTS cloud_bench_overall (
 -- Historical trend tracking with baseline comparison
 CREATE TABLE IF NOT EXISTS cloud_bench_history (
     machine_id TEXT NOT NULL,
-    benchmark_date DATE NOT NULL,
+    benchmark_date TEXT NOT NULL,
     overall_score REAL,
     baseline_score REAL,             -- First recorded score for this machine
     delta_from_baseline REAL,        -- Percentage change from baseline
-    anomaly_detected BOOLEAN DEFAULT FALSE,
+    anomaly_detected INTEGER DEFAULT 0,
     anomaly_threshold REAL,          -- Threshold used for detection
     PRIMARY KEY (machine_id, benchmark_date)
 );

@@ -1,67 +1,68 @@
 -- Cost attribution analytics schema
 -- Tracks cost attribution to repos, machines, and agent types
+-- Translated from DuckDB to SQLite-compatible SQL (bd-dfl)
 
 -- Main cost attribution snapshot table
 CREATE TABLE IF NOT EXISTS cost_attribution_snapshot (
     id INTEGER PRIMARY KEY,
-    collected_at TIMESTAMP DEFAULT current_timestamp,
-    repo_id VARCHAR,                     -- Repository identifier (from ru)
-    repo_path VARCHAR,                   -- Repository path
-    machine_id VARCHAR,                  -- Machine identifier
-    agent_type VARCHAR,                  -- claude, codex, gemini, etc.
-    provider VARCHAR,                    -- anthropic, openai, google, etc.
-    estimated_cost_usd DOUBLE,           -- Estimated cost in USD
-    tokens_input BIGINT DEFAULT 0,       -- Input tokens used
-    tokens_output BIGINT DEFAULT 0,      -- Output tokens used
-    tokens_total BIGINT DEFAULT 0,       -- Total tokens (input + output)
+    collected_at TEXT DEFAULT (datetime('now')),
+    repo_id TEXT,                     -- Repository identifier (from ru)
+    repo_path TEXT,                   -- Repository path
+    machine_id TEXT,                  -- Machine identifier
+    agent_type TEXT,                  -- claude, codex, gemini, etc.
+    provider TEXT,                    -- anthropic, openai, google, etc.
+    estimated_cost_usd REAL,         -- Estimated cost in USD
+    tokens_input INTEGER DEFAULT 0,  -- Input tokens used
+    tokens_output INTEGER DEFAULT 0, -- Output tokens used
+    tokens_total INTEGER DEFAULT 0,  -- Total tokens (input + output)
     sessions_count INTEGER DEFAULT 0,    -- Number of sessions
     requests_count INTEGER DEFAULT 0,    -- Number of API requests
-    confidence DOUBLE,                   -- Confidence score (0.0 to 1.0)
-    confidence_factors_json TEXT,        -- JSON breakdown of confidence factors
-    raw_json TEXT                        -- Full attribution details
+    confidence REAL,                 -- Confidence score (0.0 to 1.0)
+    confidence_factors_json TEXT,    -- JSON breakdown of confidence factors
+    raw_json TEXT                    -- Full attribution details
 );
 
 -- Daily cost summary for trend analysis
 CREATE TABLE IF NOT EXISTS cost_daily_summary (
     id INTEGER PRIMARY KEY,
-    date DATE NOT NULL,
-    repo_id VARCHAR,
-    machine_id VARCHAR,
-    agent_type VARCHAR,
-    provider VARCHAR,
-    total_cost_usd DOUBLE DEFAULT 0,
-    total_tokens BIGINT DEFAULT 0,
+    date TEXT NOT NULL,
+    repo_id TEXT,
+    machine_id TEXT,
+    agent_type TEXT,
+    provider TEXT,
+    total_cost_usd REAL DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
     sessions_count INTEGER DEFAULT 0,
-    avg_confidence DOUBLE,
+    avg_confidence REAL,
     UNIQUE (date, repo_id, machine_id, agent_type, provider)
 );
 
 -- Cost anomalies for alerting
 CREATE TABLE IF NOT EXISTS cost_anomalies (
     id INTEGER PRIMARY KEY,
-    detected_at TIMESTAMP DEFAULT current_timestamp,
-    anomaly_type VARCHAR NOT NULL,       -- spike, drift, unusual_pattern
-    severity VARCHAR NOT NULL,           -- info, warning, critical
-    repo_id VARCHAR,
-    machine_id VARCHAR,
-    provider VARCHAR,
-    expected_cost_usd DOUBLE,
-    actual_cost_usd DOUBLE,
-    deviation_percent DOUBLE,
+    detected_at TEXT DEFAULT (datetime('now')),
+    anomaly_type TEXT NOT NULL,       -- spike, drift, unusual_pattern
+    severity TEXT NOT NULL,           -- info, warning, critical
+    repo_id TEXT,
+    machine_id TEXT,
+    provider TEXT,
+    expected_cost_usd REAL,
+    actual_cost_usd REAL,
+    deviation_percent REAL,
     details_json TEXT,
-    acknowledged_at TIMESTAMP,
-    acknowledged_by VARCHAR
+    acknowledged_at TEXT,
+    acknowledged_by TEXT
 );
 
 -- Provider pricing reference table
 CREATE TABLE IF NOT EXISTS provider_pricing (
     id INTEGER PRIMARY KEY,
-    provider VARCHAR NOT NULL,
-    model VARCHAR NOT NULL,
-    price_per_1k_input_tokens DOUBLE,    -- USD per 1K input tokens
-    price_per_1k_output_tokens DOUBLE,   -- USD per 1K output tokens
-    effective_from TIMESTAMP,
-    effective_until TIMESTAMP,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    price_per_1k_input_tokens REAL,  -- USD per 1K input tokens
+    price_per_1k_output_tokens REAL, -- USD per 1K output tokens
+    effective_from TEXT,
+    effective_until TEXT,
     notes TEXT,
     UNIQUE (provider, model, effective_from)
 );

@@ -1,13 +1,14 @@
 -- NTM (Named Tmux Manager) collector schema
 -- Stores tmux session state, agent information, and activity snapshots
+-- Translated from DuckDB to SQLite-compatible SQL (bd-dfl)
 
 -- Session snapshots table - captures state of each ntm session
 CREATE TABLE IF NOT EXISTS ntm_sessions_snapshot (
-    machine_id VARCHAR NOT NULL,
-    collected_at TIMESTAMP NOT NULL,
-    session_name VARCHAR NOT NULL,
-    exists BOOLEAN DEFAULT TRUE,
-    attached BOOLEAN DEFAULT FALSE,
+    machine_id TEXT NOT NULL,
+    collected_at TEXT NOT NULL,
+    session_name TEXT NOT NULL,
+    exists INTEGER DEFAULT 1,
+    attached INTEGER DEFAULT 0,
     windows INTEGER DEFAULT 0,
     panes INTEGER DEFAULT 0,
     agent_count INTEGER DEFAULT 0,
@@ -18,8 +19,8 @@ CREATE TABLE IF NOT EXISTS ntm_sessions_snapshot (
 
 -- Activity snapshot table - aggregated agent activity stats
 CREATE TABLE IF NOT EXISTS ntm_activity_snapshot (
-    machine_id VARCHAR NOT NULL,
-    collected_at TIMESTAMP NOT NULL,
+    machine_id TEXT NOT NULL,
+    collected_at TEXT NOT NULL,
     total_sessions INTEGER DEFAULT 0,
     total_agents INTEGER DEFAULT 0,
     attached_count INTEGER DEFAULT 0,
@@ -37,23 +38,23 @@ CREATE TABLE IF NOT EXISTS ntm_activity_snapshot (
 
 -- Agent detail snapshots - per-agent metrics over time
 CREATE TABLE IF NOT EXISTS ntm_agent_snapshot (
-    machine_id VARCHAR NOT NULL,
-    collected_at TIMESTAMP NOT NULL,
-    session_name VARCHAR NOT NULL,
-    pane_id VARCHAR NOT NULL,
-    agent_type VARCHAR,                  -- claude, codex, gemini, unknown
+    machine_id TEXT NOT NULL,
+    collected_at TEXT NOT NULL,
+    session_name TEXT NOT NULL,
+    pane_id TEXT NOT NULL,
+    agent_type TEXT,                  -- claude, codex, gemini, unknown
     window_idx INTEGER DEFAULT 0,
     pane_idx INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT FALSE,
+    is_active INTEGER DEFAULT 0,
     pid INTEGER,
-    process_state VARCHAR,               -- S (sleeping), R (running), etc.
-    process_state_name VARCHAR,
+    process_state TEXT,               -- S (sleeping), R (running), etc.
+    process_state_name TEXT,
     memory_mb INTEGER,
     context_tokens INTEGER,
     context_limit INTEGER,
-    context_percent DOUBLE,
-    context_model VARCHAR,
-    last_output_ts TIMESTAMP,
+    context_percent REAL,
+    context_model TEXT,
+    last_output_ts TEXT,
     output_lines_since_last INTEGER DEFAULT 0,
     raw_json TEXT,
     PRIMARY KEY (machine_id, collected_at, session_name, pane_id)
