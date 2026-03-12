@@ -182,7 +182,7 @@ impl Collector for SysmoniCollector {
     }
 
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
         let mut warnings = Vec::new();
 
@@ -429,9 +429,10 @@ mod tests {
     fn test_sysmoni_collector_behavior() {
         crate::run_async_test(async {
             let collector = SysmoniCollector;
+            let cx = asupersync::Cx::for_testing();
             let ctx = CollectContext::local("test", Duration::from_secs(5));
 
-            let result = collector.collect(&ctx).await;
+            let result = collector.collect(&cx, &ctx).await;
 
             // Test handles both cases: sysmoni installed or not
             match result {

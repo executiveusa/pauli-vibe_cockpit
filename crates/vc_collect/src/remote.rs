@@ -381,9 +381,13 @@ impl MultiMachineCollector {
     }
 
     /// Collect from all machines that have the required tool
-    #[instrument(skip(self, collector), fields(collector = %collector.name()))]
+    ///
+    /// Each collector task receives a cloned `Cx` for structured cancellation
+    /// and checkpoint support.
+    #[instrument(skip(self, cx, collector), fields(collector = %collector.name()))]
     pub async fn collect_all<C: Collector + Clone + 'static>(
         &self,
+        cx: &asupersync::Cx,
         collector: C,
     ) -> CollectionSummary {
         let start = Instant::now();
@@ -403,15 +407,22 @@ impl MultiMachineCollector {
             }
         };
 
+        let machine_count = machines.len();
         info!(
             collector = %collector_name,
-            machine_count = machines.len(),
-            "Starting multi-machine collection"
+            machine_count,
+            max_concurrent = self.config.max_concurrent,
+            cancel_requested = cx.is_cancel_requested(),
+            "Collection region: spawning collector tasks"
         );
 
-        // Collect from all machines in parallel with bounded concurrency
+        // Collect from all machines in parallel with bounded concurrency.
+        // Each task gets a cloned Cx for structured cancellation support.
+        // TODO(bd-qdp): Wrap in asupersync region with budget deadline for
+        // graceful drain when the high-level region API is available.
         let results: Vec<MachineCollectResult> = stream::iter(machines)
             .map(|machine| {
+                let cx = cx.clone();
                 let collector = collector.clone();
                 let ssh = self.ssh.clone();
                 let config = self.config.clone();
@@ -426,7 +437,7 @@ impl MultiMachineCollector {
                     // Check if machine is local
                     if machine.is_local {
                         return self
-                            .collect_local(&collector, &machine, cursor.as_ref())
+                            .collect_local(&cx, &collector, &machine, cursor.as_ref())
                             .await;
                     }
 
@@ -469,11 +480,12 @@ impl MultiMachineCollector {
 
         info!(
             collector = %collector_name,
+            machine_count,
             machines_succeeded = summary.machines_succeeded,
             machines_failed = summary.machines_failed,
             total_rows = summary.total_rows,
             duration_ms = summary.total_duration.as_millis(),
-            "Multi-machine collection complete"
+            "Collection region: all tasks drained"
         );
 
         summary
@@ -482,6 +494,7 @@ impl MultiMachineCollector {
     /// Collect from a local machine
     async fn collect_local<C: Collector>(
         &self,
+        cx: &asupersync::Cx,
         collector: &C,
         machine: &Machine,
         cursor: Option<&Cursor>,
@@ -498,7 +511,7 @@ impl MultiMachineCollector {
             ctx
         };
 
-        let result = collector.collect(&ctx).await;
+        let result = collector.collect(cx, &ctx).await;
 
         MachineCollectResult {
             machine_id,
@@ -509,9 +522,10 @@ impl MultiMachineCollector {
     }
 
     /// Collect from specific machines only
-    #[instrument(skip(self, collector, machine_ids), fields(collector = %collector.name()))]
+    #[instrument(skip(self, cx, collector, machine_ids), fields(collector = %collector.name()))]
     pub async fn collect_from<C: Collector + Clone + 'static>(
         &self,
+        cx: &asupersync::Cx,
         collector: C,
         machine_ids: &[String],
     ) -> CollectionSummary {
@@ -545,6 +559,7 @@ impl MultiMachineCollector {
         // Collect from machines in parallel
         let results: Vec<MachineCollectResult> = stream::iter(machines)
             .map(|machine| {
+                let cx = cx.clone();
                 let collector = collector.clone();
                 let ssh = self.ssh.clone();
                 let config = self.config.clone();
@@ -558,7 +573,7 @@ impl MultiMachineCollector {
 
                     if machine.is_local {
                         return self
-                            .collect_local(&collector, &machine, cursor.as_ref())
+                            .collect_local(&cx, &collector, &machine, cursor.as_ref())
                             .await;
                     }
 

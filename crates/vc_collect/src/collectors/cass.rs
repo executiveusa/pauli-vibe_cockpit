@@ -103,7 +103,7 @@ impl Collector for CassCollector {
     }
 
     #[allow(clippy::too_many_lines, clippy::cast_precision_loss)]
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
         let mut warnings = Vec::new();
         let mut batches = Vec::new();
@@ -344,9 +344,10 @@ mod tests {
     fn test_cass_collector_behavior() {
         crate::run_async_test(async {
             let collector = CassCollector::new();
+            let cx = asupersync::Cx::for_testing();
             let ctx = CollectContext::local("test", Duration::from_secs(5));
 
-            let result = collector.collect(&ctx).await;
+            let result = collector.collect(&cx, &ctx).await;
 
             // Test handles both cases: cass installed or not
             match result {

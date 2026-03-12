@@ -85,7 +85,7 @@ impl Collector for DummyCollector {
         false
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
 
         // Generate a test row
@@ -125,7 +125,7 @@ impl Collector for IncrementalDummyCollector {
         true
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
 
         // Get the last primary key or start from 0
@@ -224,7 +224,7 @@ impl Collector for ToolRequiringDummyCollector {
         Some(self.required)
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         // Check tool availability first
         if !self.check_availability(ctx).await {
             return Err(CollectError::ToolNotFound(self.required.to_string()));
@@ -266,7 +266,7 @@ impl Collector for BatchDummyCollector {
         1
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
 
         // Respect max_rows limit
@@ -368,7 +368,7 @@ impl Collector for RuCollector {
         false // Stateless - each poll is a fresh snapshot
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
         let mut rows = vec![];
         let mut warnings = vec![];
@@ -541,7 +541,7 @@ impl Collector for FallbackProbeCollector {
         false // Each collection is a point-in-time snapshot
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
         let mut warnings = Vec::new();
         let mut raw_outputs = Vec::new();
@@ -956,10 +956,11 @@ mod tests {
     #[test]
     fn test_dummy_collector() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = DummyCollector;
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
             assert!(result.success);
             assert_eq!(result.total_rows(), 1);
             assert!(result.new_cursor.is_some());
@@ -969,16 +970,17 @@ mod tests {
     #[test]
     fn test_incremental_dummy_collector() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = IncrementalDummyCollector;
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
             // First collection
-            let result1 = collector.collect(&ctx).await.unwrap();
+            let result1 = collector.collect(&cx, &ctx).await.unwrap();
             assert_eq!(result1.new_cursor, Some(Cursor::primary_key(1)));
 
             // Second collection with cursor
             let ctx2 = ctx.clone().with_cursor(Cursor::primary_key(1));
-            let result2 = collector.collect(&ctx2).await.unwrap();
+            let result2 = collector.collect(&cx, &ctx2).await.unwrap();
             assert_eq!(result2.new_cursor, Some(Cursor::primary_key(2)));
         });
     }
@@ -986,10 +988,11 @@ mod tests {
     #[test]
     fn test_failing_dummy_collector() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = FailingDummyCollector::always_fails("test error");
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-            let result = collector.collect(&ctx).await;
+            let result = collector.collect(&cx, &ctx).await;
             assert!(result.is_err());
             assert!(matches!(result, Err(CollectError::Other(_))));
         });
@@ -998,10 +1001,11 @@ mod tests {
     #[test]
     fn test_batch_dummy_collector() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = BatchDummyCollector::new(100);
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
             assert_eq!(result.total_rows(), 100);
         });
     }
@@ -1009,10 +1013,11 @@ mod tests {
     #[test]
     fn test_batch_dummy_respects_max_rows() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = BatchDummyCollector::new(1000);
             let ctx = CollectContext::local("test", Duration::from_secs(30)).with_max_rows(50);
 
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
             assert_eq!(result.total_rows(), 50);
         });
     }
@@ -1020,11 +1025,12 @@ mod tests {
     #[test]
     fn test_tool_requiring_collector_with_available_tool() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = ToolRequiringDummyCollector::new("sh");
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
             // sh should be available on all Unix systems
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
             assert!(result.success);
         });
     }
@@ -1032,10 +1038,11 @@ mod tests {
     #[test]
     fn test_tool_requiring_collector_with_missing_tool() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = ToolRequiringDummyCollector::new("nonexistent_tool_xyz_12345");
             let ctx = CollectContext::local("test", Duration::from_secs(30));
 
-            let result = collector.collect(&ctx).await;
+            let result = collector.collect(&cx, &ctx).await;
             assert!(result.is_err());
             assert!(matches!(result, Err(CollectError::ToolNotFound(_))));
         });
@@ -1150,12 +1157,13 @@ mod tests {
     #[test]
     fn test_ru_collector_without_tool() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             // Test that collector gracefully handles missing ru tool
             let collector = RuCollector;
             let ctx = CollectContext::local("test", Duration::from_secs(5));
 
             // This should not panic, but will likely fail due to missing tool
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
 
             // Without ru installed, we expect warnings but no crash
             // The result may have empty rows and warnings
@@ -1178,11 +1186,12 @@ mod tests {
     #[test]
     fn test_fallback_probe_collector_local() {
         crate::run_async_test(async {
+            let cx = asupersync::Cx::for_testing();
             let collector = FallbackProbeCollector;
             let ctx = CollectContext::local("test-machine", Duration::from_secs(30));
 
             // This should always succeed - that's the whole point of the fallback collector
-            let result = collector.collect(&ctx).await.unwrap();
+            let result = collector.collect(&cx, &ctx).await.unwrap();
             assert!(result.success);
             assert_eq!(result.total_rows(), 1);
             assert!(result.new_cursor.is_some());

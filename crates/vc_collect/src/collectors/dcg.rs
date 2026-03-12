@@ -77,7 +77,7 @@ impl Collector for DcgCollector {
         true
     }
 
-    async fn collect(&self, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
+    async fn collect(&self, _cx: &asupersync::Cx, ctx: &CollectContext) -> Result<CollectResult, CollectError> {
         let start = Instant::now();
         let mut warnings = Vec::new();
         let db_path = self.expand_path();
@@ -248,10 +248,11 @@ mod tests {
         crate::run_async_test(async {
             use std::time::Duration;
 
+            let cx = asupersync::Cx::for_testing();
             let collector = DcgCollector::with_path("/nonexistent/path/events.db");
             let ctx = CollectContext::local("test-machine", Duration::from_secs(10));
 
-            let result = collector.collect(&ctx).await;
+            let result = collector.collect(&cx, &ctx).await;
             // Should succeed with empty result and warning
             assert!(result.is_ok());
             let result = result.unwrap();
