@@ -9,11 +9,13 @@
 use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use vc_collect::executor::Executor;
+use vc_collect::machine::{Machine, MachineStatus};
 use vc_config::VcConfig;
 use vc_knowledge::{
     EntryType, FeedbackType, KnowledgeEntry, KnowledgeFeedback, KnowledgeStore, SearchOptions,
@@ -51,6 +53,9 @@ pub enum CliError {
 
     #[error("Knowledge error: {0}")]
     KnowledgeError(#[from] vc_knowledge::KnowledgeError),
+
+    #[error("TUI error: {0}")]
+    TuiError(#[from] vc_tui::TuiError),
 }
 
 /// Output format for robot mode
@@ -93,7 +98,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Start the TUI dashboard
-    Tui,
+    Tui {
+        /// Render below the current prompt instead of using the alternate screen
+        #[arg(long)]
+        inline: bool,
+    },
 
     /// Run the daemon (poll loop)
     Daemon {
@@ -1162,9 +1171,16 @@ impl Cli {
     /// Run the CLI
     pub async fn run(self) -> Result<(), CliError> {
         match self.command {
-            Commands::Tui => {
-                println!("Starting TUI...");
-                // TUI implementation will go here
+            Commands::Tui { inline } => {
+                if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+                    return Err(CliError::CommandFailed(
+                        "vc tui requires an interactive terminal (TTY)".to_string(),
+                    ));
+                }
+
+                let config = load_config(self.config.as_ref())?;
+                let options = resolve_tui_options(&config, inline);
+                vc_tui::run_with_options(options)?;
             }
             Commands::Status { machine } => {
                 println!(
@@ -1220,18 +1236,16 @@ impl Cli {
                         }
                     }
                     RobotCommands::Machines => {
-                        let store = Arc::new(open_store(self.config.as_ref())?);
-                        let config = match &self.config {
-                            Some(path) => VcConfig::load_with_env(path)?,
-                            None => VcConfig::discover_with_env()?,
-                        };
-                        let registry = vc_collect::machine::MachineRegistry::new(store);
-                        let _ = registry.load_from_config(&config);
-                        let machines = registry.list_machines(None).unwrap_or_default();
-                        let data = serde_json::json!({
+                        let config = load_config(self.config.as_ref())?;
+                        let (machines, warning) =
+                            robot_machines_inventory(&config, self.config.as_ref());
+                        let mut data = serde_json::json!({
                             "machines": machines,
                             "total": machines.len(),
                         });
+                        if let Some(warning) = warning {
+                            data["warning"] = serde_json::Value::String(warning);
+                        }
                         let output = robot::RobotEnvelope::new("vc.robot.machines.v1", data);
                         match self.format {
                             OutputFormat::Toon => {
@@ -3335,11 +3349,136 @@ impl Cli {
     }
 }
 
-fn open_store(config_path: Option<&std::path::PathBuf>) -> Result<VcStore, CliError> {
-    let config = match config_path {
-        Some(path) => VcConfig::load_with_env(path)?,
-        None => VcConfig::discover_with_env()?,
+fn load_config(config_path: Option<&std::path::PathBuf>) -> Result<VcConfig, CliError> {
+    match config_path {
+        Some(path) => VcConfig::load_with_env(path).map_err(CliError::from),
+        None => VcConfig::discover_with_env().map_err(CliError::from),
+    }
+}
+
+fn resolve_tui_options(config: &VcConfig, inline_flag: bool) -> vc_tui::RunOptions {
+    vc_tui::RunOptions {
+        inline_mode: inline_flag || config.tui.inline_mode,
+        inline_height: config.tui.inline_height,
+        mouse_support: config.tui.mouse_support,
+    }
+}
+
+fn robot_machines_inventory(
+    config: &VcConfig,
+    config_path: Option<&PathBuf>,
+) -> (Vec<Machine>, Option<String>) {
+    let fallback_warning =
+        "machine registry unavailable; returning config-derived inventory".to_string();
+
+    let store = match open_store(config_path) {
+        Ok(store) => Arc::new(store),
+        Err(err) => {
+            tracing::warn!(error = %err, "robot machines falling back to config-only inventory");
+            return (machines_from_config(config), Some(fallback_warning));
+        }
     };
+
+    let registry = vc_collect::machine::MachineRegistry::new(store);
+    if let Err(err) = registry.load_from_config(config) {
+        tracing::warn!(error = %err, "robot machines could not persist config inventory");
+        return (machines_from_config(config), Some(fallback_warning));
+    }
+
+    match registry.list_machines(None) {
+        Ok(machines) => (machines, None),
+        Err(err) => {
+            tracing::warn!(error = %err, "robot machines could not query registry inventory");
+            (machines_from_config(config), Some(fallback_warning))
+        }
+    }
+}
+
+fn machines_from_config(config: &VcConfig) -> Vec<Machine> {
+    let collected_at = Utc::now().to_rfc3339();
+    let mut machines: Vec<Machine> = config
+        .machines
+        .iter()
+        .map(|(id, machine)| machine_from_config_entry(id, machine, &collected_at))
+        .collect();
+
+    if !config.machines.contains_key("local") {
+        machines.push(default_local_machine(&collected_at));
+    }
+
+    machines.sort_by(|left, right| left.hostname.cmp(&right.hostname));
+    machines
+}
+
+fn machine_from_config_entry(
+    id: &str,
+    machine: &vc_config::MachineConfig,
+    collected_at: &str,
+) -> Machine {
+    let hostname = machine
+        .ssh_host
+        .clone()
+        .unwrap_or_else(|| machine.name.clone());
+    let ssh_key_path = machine
+        .ssh_key
+        .as_ref()
+        .map(|path| path.to_string_lossy().to_string());
+    let metadata = if machine.collectors.is_empty() && machine.tags.is_empty() {
+        None
+    } else {
+        Some(serde_json::json!({
+            "collectors": &machine.collectors,
+            "tags": &machine.tags,
+            "source": "config",
+        }))
+    };
+
+    Machine {
+        machine_id: id.to_string(),
+        hostname,
+        display_name: Some(machine.name.clone()),
+        ssh_host: machine.ssh_host.clone(),
+        ssh_user: machine.ssh_user.clone(),
+        ssh_key_path,
+        ssh_port: machine.ssh_port,
+        is_local: machine.ssh_host.is_none(),
+        os_type: None,
+        arch: None,
+        added_at: Some(collected_at.to_string()),
+        last_seen_at: None,
+        last_probe_at: None,
+        status: MachineStatus::Unknown,
+        tags: machine.tags.clone(),
+        metadata,
+        enabled: machine.enabled,
+    }
+}
+
+fn default_local_machine(collected_at: &str) -> Machine {
+    let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+    Machine {
+        machine_id: "local".to_string(),
+        hostname,
+        display_name: Some("Local Machine".to_string()),
+        ssh_host: None,
+        ssh_user: None,
+        ssh_key_path: None,
+        ssh_port: 22,
+        is_local: true,
+        os_type: None,
+        arch: None,
+        added_at: Some(collected_at.to_string()),
+        last_seen_at: None,
+        last_probe_at: None,
+        status: MachineStatus::Unknown,
+        tags: Vec::new(),
+        metadata: None,
+        enabled: true,
+    }
+}
+
+fn open_store(config_path: Option<&std::path::PathBuf>) -> Result<VcStore, CliError> {
+    let config = load_config(config_path)?;
     Ok(VcStore::open(&config.global.db_path)?)
 }
 
@@ -3495,7 +3634,13 @@ mod tests {
     #[test]
     fn test_tui_parse() {
         let cli = Cli::parse_from(["vc", "tui"]);
-        assert!(matches!(cli.command, Commands::Tui));
+        assert!(matches!(cli.command, Commands::Tui { inline: false }));
+    }
+
+    #[test]
+    fn test_tui_inline_parse() {
+        let cli = Cli::parse_from(["vc", "tui", "--inline"]);
+        assert!(matches!(cli.command, Commands::Tui { inline: true }));
     }
 
     // =============================================================================
@@ -4858,12 +5003,32 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_run_tui() {
-        run_async(async {
-            let cli = Cli::parse_from(["vc", "tui"]);
-            let result = cli.run().await;
-            assert!(result.is_ok());
-        });
+    fn test_resolve_tui_options_defaults_to_fullscreen() {
+        let config = VcConfig::default();
+        let options = resolve_tui_options(&config, false);
+        assert!(!options.inline_mode);
+        assert_eq!(options.inline_height, 20);
+        assert!(options.mouse_support);
+    }
+
+    #[test]
+    fn test_resolve_tui_options_uses_config_defaults() {
+        let mut config = VcConfig::default();
+        config.tui.inline_mode = true;
+        config.tui.inline_height = 32;
+        config.tui.mouse_support = false;
+
+        let options = resolve_tui_options(&config, false);
+        assert!(options.inline_mode);
+        assert_eq!(options.inline_height, 32);
+        assert!(!options.mouse_support);
+    }
+
+    #[test]
+    fn test_resolve_tui_options_cli_inline_overrides_config() {
+        let config = VcConfig::default();
+        let options = resolve_tui_options(&config, true);
+        assert!(options.inline_mode);
     }
 
     #[test]
@@ -4905,9 +5070,26 @@ mod tests {
     #[test]
     fn test_cli_run_robot_machines() {
         run_async(async {
-            let cli = Cli::parse_from(["vc", "robot", "machines"]);
+            let test_dir =
+                std::env::temp_dir().join(format!("vc-cli-test-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&test_dir).expect("create temp test dir");
+
+            let config_path = test_dir.join("config.toml");
+            let db_path = test_dir.join("machines.duckdb");
+            let mut config = VcConfig::default();
+            config.global.db_path = db_path;
+            std::fs::write(&config_path, config.to_toml().expect("serialize config"))
+                .expect("write temp config");
+
+            let cli = Cli::parse_from([
+                "vc".to_string(),
+                "--config".to_string(),
+                config_path.display().to_string(),
+                "robot".to_string(),
+                "machines".to_string(),
+            ]);
             let result = cli.run().await;
-            assert!(result.is_ok());
+            assert!(result.is_ok(), "{result:?}");
         });
     }
 
