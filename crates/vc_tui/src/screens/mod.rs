@@ -16,6 +16,7 @@ pub mod oracle;
 pub mod overview;
 pub mod rch;
 pub mod sessions;
+pub mod settings;
 
 pub use accounts::{AccountSortField, AccountStatus, AccountsData, render_accounts};
 pub use alerts::{
@@ -46,3 +47,4 @@ pub use rch::{
     CacheStatus, CrateStats, RchBuild, RchData, RchSection, WorkerState, WorkerStatus, render_rch,
 };
 pub use sessions::{SessionGroupBy, SessionInfo, SessionsData, render_sessions};
+pub use settings::{SettingsData, render_settings};
