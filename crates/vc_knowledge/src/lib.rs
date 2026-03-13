@@ -340,7 +340,7 @@ impl KnowledgeStore {
                 entry.view_count,
                 entry.applied_count,
             ],
-            |row| row.get(0),
+            |row: &duckdb::Row<'_>| row.get(0),
         )?;
 
         Ok(id)
@@ -411,7 +411,7 @@ impl KnowledgeStore {
                 &feedback.comment,
                 feedback.created_at.to_rfc3339(),
             ],
-            |row| row.get(0),
+            |row: &duckdb::Row<'_>| row.get(0),
         )?;
 
         // Update usefulness score based on feedback
